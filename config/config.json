@@ -1,0 +1,84 @@
+{
+  "scraper": {
+    "registryUrl": "https://raw.githubusercontent.com/modelcontextprotocol/servers/main/README.md",
+    "githubApiBase": "https://api.github.com",
+    "rateLimitDelayMs": 1000,
+    "maxRetries": 3,
+    "includeCommunity": true,
+    "enrichWithRepoData": false,
+    "categories": [
+      "Official Integrations",
+      "Community Servers"
+    ]
+  },
+  "filtering": {
+    "minStars": 0,
+    "excludedLanguages": [],
+    "excludedLicenses": [],
+    "requireLicense": false,
+    "requireDescription": false
+  },
+  "output": {
+    "defaultPath": "../output/discovered-servers.json",
+    "prettyPrint": true,
+    "includeMetadata": true
+  },
+  "approval": {
+    "autoApproveOfficial": false,
+    "autoApproveCriteria": {
+      "minStars": 100,
+      "requiredTopics": [],
+      "allowedLicenses": [
+        "MIT",
+        "Apache-2.0",
+        "BSD-3-Clause"
+      ]
+    }
+  },
+  "apiCenter": {
+    "subscriptionId": "",
+    "resourceGroupName": "",
+    "apiCenterName": "",
+    "customMetadataSchema": {
+      "mcpServerType": {
+        "type": "string",
+        "choices": [
+          "Official Integration",
+          "Community",
+          "Internal"
+        ]
+      },
+      "approvalStatus": {
+        "type": "string",
+        "choices": [
+          "Approved",
+          "Pending Review",
+          "Rejected",
+          "Deprecated"
+        ]
+      },
+      "securityReview": {
+        "type": "string",
+        "choices": [
+          "Passed",
+          "Failed",
+          "Pending",
+          "Not Required"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "Team or individual responsible for this MCP server"
+      },
+      "supportLevel": {
+        "type": "string",
+        "choices": [
+          "Official",
+          "Community",
+          "Internal",
+          "None"
+        ]
+      }
+    }
+  }
+}

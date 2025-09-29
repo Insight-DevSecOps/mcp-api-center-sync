@@ -1,0 +1,45 @@
+# Output files
+output/*.json
+!output/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# PowerShell
+*.ps1xml
+
+# Azure credentials
+*.publishsettings
+*.azureProfile
+
+# Secrets
+secrets/
+*.secret
+.env
+.env.local
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# macOS
+.DS_Store
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*~
+
+# Test results
+TestResults/
+*.trx
+coverage/
