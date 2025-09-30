@@ -1,0 +1,122 @@
+name: Sync to Azure API Center
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'approved-servers/**/*.json'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no changes to Azure)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write  # Required for OIDC authentication
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AZURE_API_CENTER_NAME: ${{ secrets.AZURE_API_CENTER_NAME }}
+
+jobs:
+  sync:
+    name: Sync Approved Servers to Azure
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup PowerShell
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      
+      - name: Install PowerShell
+        shell: bash
+        run: |
+          dotnet tool install --global PowerShell
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Install Azure PowerShell Modules
+        shell: pwsh
+        run: |
+          Write-Host "📦 Installing Azure PowerShell modules..."
+          Install-Module -Name Az.Accounts -Force -AllowClobber -Scope CurrentUser
+          Install-Module -Name Az.Resources -Force -AllowClobber -Scope CurrentUser
+          Write-Host "✅ Modules installed"
+      
+      - name: Verify Azure Connection
+        shell: pwsh
+        run: |
+          Write-Host "🔐 Verifying Azure connection..."
+          $context = Get-AzContext
+          if ($context) {
+            Write-Host "✅ Connected to Azure"
+            Write-Host "  Subscription: $($context.Subscription.Name)"
+            Write-Host "  Tenant: $($context.Tenant.Id)"
+          } else {
+            Write-Error "❌ Not connected to Azure"
+            exit 1
+          }
+      
+      - name: Sync to API Center
+        shell: pwsh
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          Write-Host "🚀 Starting sync to Azure API Center..."
+          Write-Host ""
+          
+          if ($env:DRY_RUN -eq 'true') {
+            Write-Host "⚠️ DRY RUN MODE - No changes will be made to Azure"
+            Write-Host ""
+          }
+          
+          # Run the sync script
+          ./scripts/Sync-ToAPICenter.ps1 `
+            -SubscriptionId $env:AZURE_SUBSCRIPTION_ID `
+            -ResourceGroupName $env:AZURE_RESOURCE_GROUP `
+            -ApiCenterName $env:AZURE_API_CENTER_NAME `
+            -DryRun:($env:DRY_RUN -eq 'true')
+      
+      - name: Generate Summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "## 📊 Sync Summary" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Azure Subscription**: $env:AZURE_SUBSCRIPTION_ID" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Resource Group**: $env:AZURE_RESOURCE_GROUP" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **API Center**: $env:AZURE_API_CENTER_NAME" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Dry Run**: ${{ inputs.dry_run || 'false' }}" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "" >> $env:GITHUB_STEP_SUMMARY
+          
+          # Count approved servers
+          $officialCount = (Get-ChildItem -Path ./approved-servers/official -Filter *.json -File -ErrorAction SilentlyContinue).Count
+          $communityCount = (Get-ChildItem -Path ./approved-servers/community -Filter *.json -File -ErrorAction SilentlyContinue).Count
+          $totalCount = $officialCount + $communityCount
+          
+          Write-Host "### 📁 Approved Servers" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Official**: $officialCount" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Community**: $communityCount" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "- **Total**: $totalCount" >> $env:GITHUB_STEP_SUMMARY
+      
+      - name: Azure Logout
+        if: always()
+        run: |
+          az logout
+          az cache purge
+          az account clear
