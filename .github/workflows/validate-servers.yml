@@ -1,0 +1,164 @@
+name: Validate Server Metadata
+
+on:
+  pull_request:
+    paths:
+      - 'approved-servers/**/*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate Metadata Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup PowerShell
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      
+      - name: Install PowerShell
+        shell: bash
+        run: |
+          dotnet tool install --global PowerShell
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+      
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            approved-servers/**/*.json
+      
+      - name: Validate JSON files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        shell: pwsh
+        run: |
+          $errors = @()
+          $warnings = @()
+          
+          Write-Host "🔍 Validating server metadata files..."
+          Write-Host ""
+          
+          $changedFiles = '${{ steps.changed-files.outputs.all_changed_files }}'.Split(' ')
+          
+          foreach ($file in $changedFiles) {
+            if (-not $file) { continue }
+            
+            Write-Host "📄 Validating: $file"
+            
+            # Validate JSON syntax
+            try {
+              $metadata = Get-Content $file -Raw | ConvertFrom-Json
+              Write-Host "  ✅ Valid JSON syntax"
+            } catch {
+              $errors += "❌ $file - Invalid JSON: $($_.Exception.Message)"
+              continue
+            }
+            
+            # Validate required fields
+            $requiredFields = @('name', 'description', 'homepage', 'source', 'approved_by', 'approved_date')
+            foreach ($field in $requiredFields) {
+              if (-not $metadata.$field) {
+                $errors += "❌ $file - Missing required field: $field"
+              }
+            }
+            
+            # Validate source field
+            if ($metadata.source -and $metadata.source -notin @('official', 'community')) {
+              $errors += "❌ $file - Invalid source: $($metadata.source). Must be 'official' or 'community'"
+            }
+            
+            # Validate file location matches source
+            if ($file -like '*approved-servers/official/*' -and $metadata.source -ne 'official') {
+              $errors += "❌ $file - File in official/ directory but source is '$($metadata.source)'"
+            }
+            if ($file -like '*approved-servers/community/*' -and $metadata.source -ne 'community') {
+              $errors += "❌ $file - File in community/ directory but source is '$($metadata.source)'"
+            }
+            
+            # Validate homepage URL
+            if ($metadata.homepage -and $metadata.homepage -notmatch '^https?://') {
+              $errors += "❌ $file - Invalid homepage URL: $($metadata.homepage)"
+            }
+            
+            # Validate approved_date format (YYYY-MM-DD)
+            if ($metadata.approved_date -and $metadata.approved_date -notmatch '^\d{4}-\d{2}-\d{2}$') {
+              $warnings += "⚠️ $file - approved_date should be in YYYY-MM-DD format: $($metadata.approved_date)"
+            }
+            
+            # Check for security_review field
+            if (-not $metadata.security_review) {
+              $warnings += "⚠️ $file - Missing security_review field (recommended)"
+            }
+            
+            # Validate tags (if present)
+            if ($metadata.tags -and $metadata.tags -isnot [array]) {
+              $errors += "❌ $file - tags field must be an array"
+            }
+            
+            Write-Host ""
+          }
+          
+          # Display results
+          if ($warnings.Count -gt 0) {
+            Write-Host "⚠️ WARNINGS ($($warnings.Count)):"
+            $warnings | ForEach-Object { Write-Host $_ }
+            Write-Host ""
+          }
+          
+          if ($errors.Count -gt 0) {
+            Write-Host "❌ VALIDATION FAILED ($($errors.Count) errors):"
+            $errors | ForEach-Object { Write-Host $_ }
+            exit 1
+          } else {
+            Write-Host "✅ All validation checks passed!"
+          }
+      
+      - name: Comment on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ Validation Failed
+              
+              The server metadata validation checks failed. Please review the workflow logs for details.
+              
+              ### Common Issues:
+              - Missing required fields (name, description, homepage, source, approved_by, approved_date)
+              - Invalid JSON syntax
+              - Invalid source value (must be 'official' or 'community')
+              - File location doesn't match source field
+              - Invalid URL format
+              
+              Please fix the validation errors and push your changes.
+              `
+            })
+      
+      - name: Comment on PR success
+        if: success() && github.event_name == 'pull_request' && steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ Validation Passed
+              
+              All server metadata files have been validated successfully!
+              
+              The files are ready for review and approval.
+              `
+            })

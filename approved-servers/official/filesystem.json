@@ -1,0 +1,25 @@
+{
+  "name": "filesystem",
+  "description": "Secure file operations with configurable access controls for reading, writing, and managing files and directories",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+  "source": "official",
+  "approved_by": "platform-team",
+  "approved_date": "2025-09-29",
+  "security_review": {
+    "reviewed_by": "security-team",
+    "review_date": "2025-09-29",
+    "notes": "Example server for demonstration. Path traversal protections reviewed. Access controls properly implemented.",
+    "approved": true
+  },
+  "tags": [
+    "filesystem",
+    "storage",
+    "files",
+    "official"
+  ],
+  "custom_metadata": {
+    "department": "Platform Engineering",
+    "support_contact": "platform-team@example.com",
+    "documentation": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem#readme"
+  }
+}
